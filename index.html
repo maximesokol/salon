@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Salon">
+<meta name="theme-color" content="#0b0b0f">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<title>Salon</title>
+<style>
+:root{
+  --bg:#0b0b0f; --fg:#f5f5f7; --muted:rgba(245,245,247,.6); --faint:rgba(245,245,247,.12);
+  --accent:#1ed760; --card:rgba(255,255,255,.07); --r:22px;
+  --sat:env(safe-area-inset-top); --sab:env(safe-area-inset-bottom);
+  --sal:env(safe-area-inset-left); --sar:env(safe-area-inset-right);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);overflow:hidden;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,select{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--faint);border-radius:12px;padding:10px 12px;width:100%;-webkit-user-select:text;user-select:text}
+#app{position:fixed;inset:0;padding:calc(var(--sat) + 14px) calc(var(--sar) + 20px) calc(var(--sab) + 14px) calc(var(--sal) + 20px);
+  transition:filter 1.2s ease}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;background:rgb(60,18,0);mix-blend-mode:multiply;opacity:0;transition:opacity 1.2s ease}
+body.night::after{opacity:.6}
+
+/* Fond flouté à partir de la pochette */
+#bg{position:fixed;inset:-60px;background-size:cover;background-position:center;filter:blur(60px) saturate(1.5) brightness(.55);
+  opacity:0;transition:opacity 1.2s ease, background-image .6s}
+#bg.on{opacity:1}
+#bgShade{position:fixed;inset:0;background:radial-gradient(ellipse at 30% 40%,transparent 0,rgba(0,0,0,.45) 80%)}
+
+/* Barre du haut */
+#top{position:relative;display:flex;justify-content:space-between;align-items:center;height:28px;font-size:15px;color:var(--muted)}
+#top .l,#top .r{display:flex;gap:14px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;background:var(--card);font-size:13px;color:var(--fg)}
+.chip.hide{display:none}
+
+/* Vues */
+.view{position:absolute;left:calc(var(--sal) + 20px);right:calc(var(--sar) + 20px);top:calc(var(--sat) + 52px);bottom:calc(var(--sab) + 70px);
+  display:flex;align-items:center;justify-content:center;transition:opacity .6s ease, transform .6s ease}
+.view.hidden{opacity:0;pointer-events:none;transform:scale(.98)}
+
+/* Vue lecture */
+#player{gap:4vw}
+#art{height:min(100%,78vw);aspect-ratio:1;border-radius:var(--r);background:#222 center/cover;box-shadow:0 30px 60px rgba(0,0,0,.5);flex:none;
+  transition:transform .4s cubic-bezier(.2,.8,.2,1)}
+#art.paused{transform:scale(.94)}
+#meta{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:10px}
+#ctx{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#title{font-size:clamp(22px,4.2vw,40px);font-weight:700;line-height:1.1;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#artist{font-size:clamp(15px,2.4vw,22px);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#prog{margin-top:12px;position:relative;height:28px;display:flex;align-items:center}
+#prog .track{position:absolute;left:0;right:0;height:5px;border-radius:5px;background:var(--faint);overflow:hidden}
+#prog .fill{height:100%;width:0;background:var(--fg);border-radius:5px}
+#times{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+#ctrls{display:flex;align-items:center;justify-content:space-between;max-width:420px;margin-top:6px}
+.ib{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;transition:transform .15s, background .2s}
+.ib:active{transform:scale(.88);background:var(--faint)}
+.ib svg{width:28px;height:28px;fill:currentColor}
+.ib.big{width:76px;height:76px;background:var(--fg);color:#000}
+.ib.big svg{width:36px;height:36px}
+.ib.sm svg{width:22px;height:22px}
+.ib.on{color:var(--accent)}
+#vol{display:flex;align-items:center;gap:10px;max-width:420px;color:var(--muted)}
+#vol .bar{flex:1;height:30px;position:relative;display:flex;align-items:center}
+#vol .bar .t{position:absolute;left:0;right:0;height:5px;border-radius:5px;background:var(--faint);overflow:hidden}
+#vol .bar .f{height:100%;background:var(--muted)}
+#vol svg{width:18px;height:18px;fill:currentColor}
+
+/* Vue horloge (ambiance) */
+#clockView{flex-direction:column;gap:6px}
+#bigClock{font-size:min(24vw,38vh,220px);font-weight:200;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+#bigDate{font-size:clamp(16px,2.6vw,24px);color:var(--muted);text-transform:capitalize}
+#wxRow{display:flex;gap:26px;margin-top:22px;align-items:center}
+#wxNow{display:flex;align-items:center;gap:10px;font-size:30px;font-weight:300}
+#wxNow .e{font-size:40px}
+.fc{display:flex;flex-direction:column;align-items:center;font-size:13px;color:var(--muted);gap:2px}
+.fc .e{font-size:22px}
+.fc b{color:var(--fg);font-weight:500}
+#miniNow{margin-top:20px;display:none;align-items:center;gap:12px;padding:8px 14px 8px 8px;border-radius:99px;background:var(--card)}
+#miniNow img{width:36px;height:36px;border-radius:50%}
+#miniNow span{font-size:14px;max-width:50vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Dock */
+#dock{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--sab) + 10px);display:flex;gap:6px;padding:6px;border-radius:99px;
+  background:rgba(20,20,24,.55);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid var(--faint)}
+#dock button{width:48px;height:44px;border-radius:99px;display:grid;place-items:center;color:var(--muted)}
+#dock button.act{background:var(--faint);color:var(--fg)}
+#dock svg{width:22px;height:22px;fill:currentColor}
+
+/* Panneaux (feuilles) */
+#sheet{position:fixed;inset:0;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .3s}
+#sheet.open{opacity:1;pointer-events:auto}
+#sheetBox{width:min(720px,100%);max-height:86%;background:rgba(28,28,32,.92);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);
+  border-radius:26px 26px 0 0;padding:18px calc(var(--sar) + 22px) calc(var(--sab) + 22px) calc(var(--sal) + 22px);overflow:auto;
+  transform:translateY(40px);transition:transform .35s cubic-bezier(.2,.8,.2,1);-webkit-overflow-scrolling:touch}
+#sheet.open #sheetBox{transform:none}
+#sheetBox h2{margin:4px 0 14px;font-size:22px;display:flex;justify-content:space-between;align-items:center}
+#sheetBox h2 button{font-size:15px;color:var(--muted);font-weight:400}
+.list{display:flex;flex-direction:column;gap:4px}
+.row{display:flex;align-items:center;gap:14px;padding:8px;border-radius:14px;text-align:left;width:100%}
+.row:active{background:var(--faint)}
+.row img,.row .ph{width:48px;height:48px;border-radius:8px;object-fit:cover;flex:none;background:var(--faint);display:grid;place-items:center}
+.row .tx{min-width:0;flex:1}
+.row .a{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .b{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row.cur .a{color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px}
+.tile{text-align:left}
+.tile img,.tile .ph{width:100%;aspect-ratio:1;border-radius:12px;object-fit:cover;background:var(--faint)}
+.tile div{font-size:13px;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.presets{display:flex;flex-wrap:wrap;gap:10px}
+.pill{padding:12px 18px;border-radius:99px;background:var(--card);font-size:16px}
+.pill:active,.pill.on{background:var(--fg);color:#000}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+.btn{display:inline-block;padding:12px 18px;border-radius:14px;background:var(--accent);color:#000;font-weight:600}
+.btn.ghost{background:var(--card);color:var(--fg)}
+.hint{font-size:13px;color:var(--muted);line-height:1.5}
+code{background:var(--card);padding:2px 6px;border-radius:6px;font-size:12px;-webkit-user-select:all;user-select:all;word-break:break-all}
+.sw{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--faint)}
+.sw input{width:auto}
+#toast{position:fixed;top:calc(var(--sat) + 12px);left:50%;transform:translate(-50%,-80px);background:rgba(40,40,46,.95);padding:10px 18px;border-radius:99px;
+  font-size:14px;transition:transform .35s cubic-bezier(.2,.8,.2,1);z-index:9;max-width:90vw;text-align:center}
+#toast.on{transform:translate(-50%,0)}
+
+/* Portrait */
+@media (orientation:portrait){
+  #player{flex-direction:column;justify-content:center;gap:22px}
+  #player{gap:16px}
+  #art{width:min(80vw,38vh);height:auto}
+  #meta{flex:none;width:100%;max-width:440px;gap:6px}
+  #prog{margin-top:4px}
+  #ctrls,#vol{max-width:none}
+  #wxRow{flex-wrap:wrap;justify-content:center}
+}
+@media (max-height:430px) and (orientation:landscape){
+  .view{bottom:calc(var(--sab) + 72px)}
+  #art{height:min(100%,40vw)}
+  .ib{width:46px;height:46px}
+  .ib.big{width:60px;height:60px}
+  #meta{gap:4px}
+  #prog{margin-top:6px;height:22px}
+  #title{font-size:clamp(22px,3.6vw,34px)}
+  #vol .bar{height:26px}
+  #dock button{height:40px}
+  #miniNow{display:none!important}
+  #wxRow{margin-top:14px}
+}
+
+/* ================= Liquid Glass ================= */
+:root{ --glass-bg:linear-gradient(135deg,rgba(255,255,255,.16),rgba(255,255,255,.04) 55%,rgba(255,255,255,.08));
+  --glass-blur:blur(22px) saturate(140%);
+  --glass-edge:inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(255,255,255,.12), inset 1px 0 0 rgba(255,255,255,.18), inset -1px 0 0 rgba(255,255,255,.08);
+  --glass-shadow:0 18px 40px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.18);
+  --spring:cubic-bezier(.34,1.56,.64,1) }
+.glass{position:relative;background:var(--glass-bg);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  border:1px solid rgba(255,255,255,.16);box-shadow:var(--glass-edge),var(--glass-shadow);overflow:hidden;isolation:isolate}
+/* reflet spéculaire + lumière qui suit le doigt */
+.glass::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;
+  background:radial-gradient(120% 60% at 20% -10%,rgba(255,255,255,.35),transparent 55%),
+             radial-gradient(160px circle at var(--lx,50%) var(--ly,-200px),rgba(255,255,255,.28),transparent 70%);
+  transition:background .2s}
+.glass::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.10),transparent 30%,transparent 75%,rgba(255,255,255,.06))}
+.press{transition:transform .45s var(--spring), background .25s, box-shadow .25s}
+.press:active{transform:scale(.9)}
+
+/* fond vivant : pochette moins floutée + halos colorés en mouvement */
+#bg{filter:blur(34px) saturate(1.7) brightness(.72)}
+#blobs{position:fixed;inset:0;overflow:hidden;pointer-events:none}
+#blobs i{position:absolute;width:60vmax;height:60vmax;border-radius:50%;filter:blur(70px);opacity:.35;mix-blend-mode:screen;
+  background:radial-gradient(circle,var(--accent),transparent 65%);animation:drift 26s ease-in-out infinite alternate}
+#blobs i:nth-child(1){left:-15vmax;top:-20vmax}
+#blobs i:nth-child(2){right:-20vmax;bottom:-25vmax;background:radial-gradient(circle,#5b8cff,transparent 65%);animation-duration:32s;animation-delay:-8s}
+#blobs i:nth-child(3){left:30vw;top:30vh;width:40vmax;height:40vmax;background:radial-gradient(circle,#ff6bd5,transparent 65%);opacity:.35;animation-duration:38s;animation-delay:-15s}
+@media (prefers-reduced-motion:reduce){#blobs i{animation:none}}
+@keyframes drift{0%{transform:translate(0,0) scale(1)}50%{transform:translate(8vw,6vh) scale(1.15)}100%{transform:translate(-6vw,10vh) scale(.95)}}
+#bgShade{background:radial-gradient(ellipse at 30% 40%,transparent 0,rgba(0,0,0,.35) 85%)}
+
+/* carte de lecture en verre */
+#meta.glass{padding:22px 26px;border-radius:32px;gap:8px}
+#art{border-radius:30px;box-shadow:0 30px 70px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.18)}
+#prog .track,#vol .bar .t{height:7px;background:rgba(255,255,255,.16);box-shadow:inset 0 1px 2px rgba(0,0,0,.25)}
+#prog .fill{background:linear-gradient(90deg,rgba(255,255,255,.75),#fff);box-shadow:0 0 12px rgba(255,255,255,.7)}
+#vol .bar .f{background:rgba(255,255,255,.75);border-radius:5px}
+.ib{border-radius:50%}
+.ib:active{background:rgba(255,255,255,.14)}
+.ib.big{background:none;color:var(--fg)}
+.ib.big.glass{border-radius:50%}
+.ib.big::before{background:radial-gradient(120% 60% at 30% 0%,rgba(255,255,255,.5),transparent 55%),radial-gradient(circle at 50% 120%,color-mix(in srgb,var(--accent) 60%,transparent),transparent 70%)}
+.ib.on{color:var(--fg);background:color-mix(in srgb,var(--accent) 45%,rgba(255,255,255,.12));box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+
+/* dock flottant façon iOS 26 */
+#dock{background:var(--glass-bg);padding:7px;gap:4px;border-radius:99px;bottom:calc(var(--sab) + 12px)}
+#dock button{color:rgba(255,255,255,.75);transition:transform .45s var(--spring), background .3s, color .3s}
+#dock button:active{transform:scale(.86)}
+#dock button.act{background:rgba(255,255,255,.22);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 4px 12px rgba(0,0,0,.15)}
+
+/* pastilles, feuilles, toast, boutons */
+.chip{background:none;padding:5px 12px}
+#sheet{background:rgba(0,0,0,.18)}
+#sheetBox{background:linear-gradient(160deg,rgba(255,255,255,.22),rgba(255,255,255,.08) 50%,rgba(255,255,255,.12));
+  -webkit-backdrop-filter:blur(40px) saturate(200%);backdrop-filter:blur(40px) saturate(200%);
+  border:1px solid rgba(255,255,255,.2);border-bottom:0;border-radius:34px 34px 0 0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 -10px 40px rgba(0,0,0,.25);
+  transform:translateY(60px) scale(.98);transition:transform .55s var(--spring)}
+#sheet.open #sheetBox{transform:none}
+#sheetBox h2 button{padding:6px 14px;border-radius:99px;background:rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.35);color:var(--fg)}
+.row:active{background:rgba(255,255,255,.14)}
+.tile img,.tile .ph{border-radius:18px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15),0 8px 20px rgba(0,0,0,.25)}
+.pill{background:rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 0 0 1px rgba(255,255,255,.1);transition:transform .45s var(--spring),background .2s}
+.pill:active{transform:scale(.92);background:rgba(255,255,255,.85);color:#000}
+.btn{border-radius:99px;background:color-mix(in srgb,var(--accent) 75%,white 10%);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 6px 18px color-mix(in srgb,var(--accent) 40%,transparent)}
+.btn.ghost{background:rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+input,select{background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.18);border-radius:16px;box-shadow:inset 0 1px 3px rgba(0,0,0,.2)}
+#toast{background:linear-gradient(135deg,rgba(255,255,255,.28),rgba(255,255,255,.10));-webkit-backdrop-filter:blur(30px) saturate(200%);backdrop-filter:blur(30px) saturate(200%);
+  border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 10px 30px rgba(0,0,0,.25);transition:transform .55s var(--spring)}
+
+/* vue horloge : météo dans un panneau de verre */
+#bigClock{font-weight:200;background:linear-gradient(180deg,#fff 30%,rgba(255,255,255,.65));-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 6px 24px rgba(0,0,0,.25))}
+#wxRow.glass{padding:12px 24px;border-radius:28px;flex:none}
+#miniNow{background:none}
+
+@media (orientation:portrait){ #meta.glass{padding:18px 20px} #art{width:min(80vw,34vh)} }
+@media (max-height:430px) and (orientation:landscape){
+  #meta.glass{padding:14px 20px;gap:2px}
+  #wxRow.glass{padding:8px 20px}
+  #bigClock{font-size:min(20vw,33vh)}
+  #clockView{gap:2px}
+}
+</style>
+</head>
+<body>
+<div id="bg"></div><div id="blobs"><i></i><i></i><i></i></div><div id="bgShade"></div>
+<div id="app">
+  <div id="top">
+    <div class="l"><span id="topClock">--:--</span><span id="topWx"></span></div>
+    <div class="r">
+      <span class="chip glass hide" id="timerChip">⏱ <span id="timerLeft"></span></span>
+      <span class="chip glass hide" id="devChip"></span>
+      <span class="chip glass hide" id="demoChip">Démo</span>
+    </div>
+  </div>
+
+  <section class="view" id="player">
+    <div id="art"></div>
+    <div id="meta" class="glass">
+      <div id="ctx"></div>
+      <div id="title">Rien en lecture</div>
+      <div id="artist">Lance Spotify sur un appareil</div>
+      <div id="prog"><div class="track"><div class="fill" id="fill"></div></div></div>
+      <div id="times"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
+      <div id="ctrls">
+        <button class="ib sm" id="bShuffle" aria-label="Aléatoire"><svg viewBox="0 0 24 24"><path d="M17 3l4 4-4 4V8h-2.6l-3 3.5-1.4-1.6L13.5 6H17V3zM3 6h4.5l9 10.5H17V13l4 4-4 4v-3h-1.4l-9-10.5H3V6zm0 10.5h3.6l2.5-2.9 1.3 1.6-3 3.3H3v-2z"/></svg></button>
+        <button class="ib" id="bPrev" aria-label="Précédent"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+        <button class="ib big glass press" id="bPlay" aria-label="Lecture"><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
+        <button class="ib" id="bNext" aria-label="Suivant"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5l11 7-11 7z"/></svg></button>
+        <button class="ib sm" id="bRepeat" aria-label="Répéter"><svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg></button>
+      </div>
+      <div id="vol">
+        <button id="vDown"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3z"/></svg></button>
+        <div class="bar" id="vBar"><div class="t"><div class="f" id="vFill" style="width:50%"></div></div></div>
+        <button id="vUp"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="view hidden" id="clockView">
+    <div id="bigClock">--:--</div>
+    <div id="bigDate"></div>
+    <div id="wxRow" class="glass"></div>
+    <button id="miniNow" class="glass press"><img id="miniArt" alt=""><span id="miniTxt"></span></button>
+  </section>
+
+  <nav id="dock" class="glass">
+    <button data-v="player" class="act" aria-label="Lecture"><svg viewBox="0 0 24 24"><path d="M12 3v10.6A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></button>
+    <button data-v="clockView" aria-label="Horloge"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 10.4 3.5 2.1-.8 1.3L11 13V7h2v5.4z"/></svg></button>
+    <button data-s="playlists" aria-label="Playlists"><svg viewBox="0 0 24 24"><path d="M3 6h12v2H3zm0 4h12v2H3zm0 4h8v2H3zm14-4v6.2A3 3 0 1 0 19 19v-7h3v-2h-5z"/></svg></button>
+    <button data-s="queue" aria-label="File d'attente"><svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"/></svg></button>
+    <button data-s="devices" aria-label="Appareils"><svg viewBox="0 0 24 24"><path d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm6 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 6a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></svg></button>
+    <button data-s="timer" aria-label="Minuteur"><svg viewBox="0 0 24 24"><path d="M9 1h6v2H9zm10 6.4 1.4-1.4L19 4.6l-1.4 1.4A9 9 0 1 0 19 7.4zM12 20a7 7 0 1 1 0-14 7 7 0 0 1 0 14zm1-11h-2v5h2V9z"/></svg></button>
+    <button data-s="settings" aria-label="Réglages"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.9c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg></button>
+  </nav>
+</div>
+
+<div id="sheet"><div id="sheetBox"></div></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* =========================================================
+   Salon — hub de salon pour un vieil iPhone
+   Spotify (Web API, PKCE, sans serveur) + horloge + météo + minuteur
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const LS = {
+  get(k, d){ try{ const v = localStorage.getItem('salon.'+k); return v===null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem('salon.'+k, JSON.stringify(v)); }catch(e){} },
+  del(k){ try{ localStorage.removeItem('salon.'+k); }catch(e){} }
+};
+const DEFAULT_CLIENT_ID = ''; // rempli d'avance si connu
+const cfg = Object.assign({
+  clientId:DEFAULT_CLIENT_ID, city:'Paris', lat:48.8566, lon:2.3522,
+  nightAuto:true, nightFrom:22, nightTo:7, idleClock:true, demo:false
+}, LS.get('cfg', {}));
+const saveCfg = () => LS.set('cfg', cfg);
+
+const SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private playlist-read-collaborative';
+const REDIRECT = location.origin + location.pathname;
+
+function toast(msg, ms=2600){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast._t); toast._t = setTimeout(()=>t.classList.remove('on'), ms);
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = ms => { ms = Math.max(0, ms|0); const s = Math.floor(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
+
+/* ---------------- Spotify : authentification PKCE ---------------- */
+const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+function randStr(n){ const a = new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a, x => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[x % 62]).join(''); }
+
+async function login(){
+  if(!cfg.clientId){ openSheet('settings'); toast('Colle d’abord ton Client ID Spotify'); return; }
+  const verifier = randStr(64);
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  LS.set('verifier', verifier);
+  const p = new URLSearchParams({ client_id:cfg.clientId, response_type:'code', redirect_uri:REDIRECT, scope:SCOPES,
+    code_challenge_method:'S256', code_challenge:challenge });
+  location.href = 'https://accounts.spotify.com/authorize?' + p;
+}
+async function tokenRequest(body){
+  const r = await fetch('https://accounts.spotify.com/api/token', { method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams(body) });
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error_description || j.error || ('HTTP '+r.status));
+  const tok = { access:j.access_token, refresh:j.refresh_token || LS.get('tok',{}).refresh, exp:Date.now() + (j.expires_in-60)*1000 };
+  LS.set('tok', tok); return tok;
+}
+async function handleCallback(){
+  const q = new URLSearchParams(location.search);
+  if(q.get('error')){ toast('Connexion Spotify refusée : '+q.get('error')); history.replaceState(null,'',REDIRECT); return; }
+  const code = q.get('code'); if(!code) return;
+  history.replaceState(null,'',REDIRECT);
+  try{
+    await tokenRequest({ grant_type:'authorization_code', code, redirect_uri:REDIRECT, client_id:cfg.clientId, code_verifier:LS.get('verifier','') });
+    LS.del('verifier'); toast('Spotify connecté 🎉');
+  }catch(e){ toast('Erreur de connexion : '+e.message, 5000); }
+}
+let refreshing = null;
+async function accessToken(){
+  const tok = LS.get('tok', null); if(!tok) return null;
+  if(Date.now() < tok.exp) return tok.access;
+  if(!refreshing) refreshing = tokenRequest({ grant_type:'refresh_token', refresh_token:tok.refresh, client_id:cfg.clientId })
+    .then(t=>t.access).catch(e=>{ LS.del('tok'); toast('Session Spotify expirée, reconnecte-toi'); return null; })
+    .finally(()=>{ refreshing = null; });
+  return refreshing;
+}
+const loggedIn = () => !!LS.get('tok', null);
+
+let backoffUntil = 0;
+async function api(path, opts={}, retry=true){
+  if(Date.now() < backoffUntil) return null;
+  const at = await accessToken(); if(!at) return null;
+  const r = await fetch('https://api.spotify.com/v1'+path, Object.assign({}, opts, {
+    headers:Object.assign({ Authorization:'Bearer '+at }, opts.body ? {'Content-Type':'application/json'} : {}) }));
+  if(r.status === 401 && retry){ const t = LS.get('tok',null); if(t){ t.exp = 0; LS.set('tok', t); } return api(path, opts, false); }
+  if(r.status === 429){ backoffUntil = Date.now() + (Number(r.headers.get('Retry-After'))||5)*1000; return null; }
+  if(r.status === 204 || r.status === 202) return {};
+  const txt = await r.text(); let j = {}; try{ j = txt ? JSON.parse(txt) : {}; }catch(e){}
+  if(!r.ok){
+    const m = j.error?.message || ('HTTP '+r.status);
+    if(r.status === 404) toast('Aucun appareil actif : choisis-en un dans 📱');
+    else if(r.status === 403) toast('Action refusée par Spotify ('+m+'). Premium requis ?');
+    else toast('Spotify : '+m);
+    return null;
+  }
+  return j;
+}
+
+/* ---------------- Démo (sans compte) ---------------- */
+const demoArt = (h1,h2,sym) => 'data:image/svg+xml,'+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${h1},80%,55%)"/><stop offset="1" stop-color="hsl(${h2},70%,25%)"/></linearGradient></defs><rect width="300" height="300" fill="url(#g)"/><circle cx="210" cy="90" r="60" fill="rgba(255,255,255,.18)"/><text x="30" y="260" font-family="Helvetica" font-size="44" font-weight="700" fill="rgba(255,255,255,.9)">${sym}</text></svg>`);
+const DEMO = [
+  { name:'Lumière du dimanche', artist:'Les Volets Clos', album:'Matins lents', art:demoArt(28,340,'Matins'), dur:214000 },
+  { name:'Café crème', artist:'Odile & le Trio', album:'Comptoir', art:demoArt(190,240,'Comptoir'), dur:187000 },
+  { name:'Nuit sur le canal', artist:'Basse Fréquence', album:'Écluses', art:demoArt(260,300,'Écluses'), dur:246000 },
+  { name:'Pluie fine', artist:'Ana Morel', album:'Saison', art:demoArt(140,200,'Saison'), dur:198000 },
+];
+const demo = { i:0, pos:42000, playing:true, vol:55, shuffle:false, repeat:'off', t:Date.now() };
+function demoState(){
+  if(demo.playing){ demo.pos += Date.now()-demo.t; } demo.t = Date.now();
+  let tr = DEMO[demo.i]; if(demo.pos >= tr.dur){ demo.i = (demo.i+1)%DEMO.length; demo.pos = 0; tr = DEMO[demo.i]; }
+  return { is_playing:demo.playing, progress_ms:demo.pos, shuffle_state:demo.shuffle, repeat_state:demo.repeat,
+    device:{ id:'demo', name:'Enceinte du salon', volume_percent:demo.vol, type:'Speaker' },
+    context:{ type:'playlist' }, item:{ id:'d'+demo.i, name:tr.name, duration_ms:tr.dur, artists:[{name:tr.artist}],
+    album:{ name:tr.album, images:[{url:tr.art}] } } };
+}
+const isDemo = () => cfg.demo || (!loggedIn() && !cfg.clientId);
+
+/* ---------------- Lecteur ---------------- */
+let st = null, stAt = 0, lastTrack = null, lastPlayingAt = Date.now();
+let view = 'player', manualView = 0;
+
+async function poll(){
+  let s;
+  if(isDemo()) s = demoState();
+  else if(loggedIn()) s = await api('/me/player?additional_types=episode');
+  else s = null;
+  if(s === null && !isDemo() && loggedIn() && Date.now() < backoffUntil) return;
+  st = (s && s.item) ? s : (s && s.device ? s : null); stAt = Date.now();
+  render();
+}
+function render(){
+  $('#demoChip').classList.toggle('hide', !isDemo());
+  const it = st?.item;
+  const playing = !!st?.is_playing;
+  if(playing) lastPlayingAt = Date.now();
+  $('#playIcon').innerHTML = playing ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+  $('#art').classList.toggle('paused', !playing);
+  $('#bShuffle').classList.toggle('on', !!st?.shuffle_state);
+  $('#bRepeat').classList.toggle('on', st && st.repeat_state !== 'off');
+  $('#bRepeat').style.opacity = st?.repeat_state === 'track' ? .65 : 1;
+  const dev = st?.device;
+  $('#devChip').classList.toggle('hide', !dev); if(dev) $('#devChip').textContent = '🔊 '+dev.name;
+  if(dev && typeof dev.volume_percent === 'number' && !volDrag) $('#vFill').style.width = dev.volume_percent+'%';
+
+  if(it){
+    const img = (it.album?.images || it.images || [])[0]?.url || '';
+    const artist = it.artists ? it.artists.map(a=>a.name).join(', ') : (it.show?.name || '');
+    if(lastTrack !== it.id){
+      lastTrack = it.id;
+      $('#title').textContent = it.name; $('#artist').textContent = artist;
+      $('#ctx').textContent = it.album?.name || it.show?.publisher || '';
+      $('#art').style.backgroundImage = img ? `url("${img}")` : '';
+      $('#bg').style.backgroundImage = img ? `url("${img}")` : ''; $('#bg').classList.toggle('on', !!img);
+      $('#miniArt').src = img; $('#miniTxt').textContent = it.name+' · '+artist;
+      pickAccent(img);
+    }
+    $('#miniNow').style.display = 'inline-flex';
+  }else{
+    lastTrack = null;
+    $('#title').textContent = loggedIn()||isDemo() ? 'Rien en lecture' : 'Spotify non connecté';
+    $('#artist').textContent = loggedIn()||isDemo() ? 'Lance la musique ici ou depuis n’importe quel appareil' : 'Ouvre ⚙︎ Réglages pour te connecter';
+    $('#ctx').textContent = ''; $('#art').style.backgroundImage = ''; $('#bg').classList.remove('on');
+    $('#miniNow').style.display = 'none';
+  }
+  autoView();
+}
+function tickProgress(){
+  if(!st?.item) { $('#fill').style.width='0'; $('#tCur').textContent='0:00'; $('#tDur').textContent='0:00'; return; }
+  const dur = st.item.duration_ms; let pos = st.progress_ms + (st.is_playing ? Date.now()-stAt : 0);
+  pos = Math.min(pos, dur);
+  $('#fill').style.width = (pos/dur*100)+'%'; $('#tCur').textContent = fmt(pos); $('#tDur').textContent = fmt(dur);
+  if(st.is_playing && pos >= dur - 300) setTimeout(poll, 600);
+}
+function pickAccent(url){
+  if(!url) return;
+  const im = new Image(); im.crossOrigin = 'anonymous';
+  im.onload = () => { try{
+    const c = document.createElement('canvas'); c.width = c.height = 16; const x = c.getContext('2d'); x.drawImage(im,0,0,16,16);
+    const d = x.getImageData(0,0,16,16).data; let best=[30,215,96], bs=-1;
+    for(let i=0;i<d.length;i+=4){ const r=d[i],g=d[i+1],b=d[i+2], mx=Math.max(r,g,b), mn=Math.min(r,g,b), s=(mx-mn)*(mx/255); if(s>bs && mx>90){bs=s;best=[r,g,b];} }
+    document.documentElement.style.setProperty('--accent', `rgb(${best.join(',')})`);
+  }catch(e){} };
+  im.src = url;
+}
+
+/* Actions avec mise à jour optimiste */
+async function act(fn, demoFn){
+  if(isDemo()){ demoState(); demoFn(); poll(); return; }
+  await fn(); setTimeout(poll, 350); setTimeout(poll, 1500);
+}
+$('#bPlay').onclick = () => { const p = st?.is_playing; if(st){ st.progress_ms += p ? Date.now()-stAt : 0; stAt = Date.now(); st.is_playing = !p; render(); }
+  act(() => api('/me/player/'+(p?'pause':'play'), {method:'PUT'}), () => { demo.playing = !p; }); };
+$('#bNext').onclick = () => act(() => api('/me/player/next', {method:'POST'}), () => { demo.i=(demo.i+1)%DEMO.length; demo.pos=0; });
+$('#bPrev').onclick = () => act(() => api('/me/player/previous', {method:'POST'}), () => { if(demo.pos>3000) demo.pos=0; else { demo.i=(demo.i+DEMO.length-1)%DEMO.length; demo.pos=0; } });
+$('#bShuffle').onclick = () => { const v = !st?.shuffle_state; act(() => api('/me/player/shuffle?state='+v, {method:'PUT'}), () => { demo.shuffle = v; }); };
+$('#bRepeat').onclick = () => { const n = {off:'context',context:'track',track:'off'}[st?.repeat_state || 'off'];
+  act(() => api('/me/player/repeat?state='+n, {method:'PUT'}), () => { demo.repeat = n; }); };
+
+// Barre de progression : toucher pour avancer
+$('#prog').onclick = e => { if(!st?.item) return; const r = e.currentTarget.getBoundingClientRect();
+  const pos = Math.round(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)) * st.item.duration_ms);
+  st.progress_ms = pos; stAt = Date.now(); tickProgress();
+  act(() => api('/me/player/seek?position_ms='+pos, {method:'PUT'}), () => { demo.pos = pos; }); };
+
+// Volume : glisser sur la barre
+let volDrag = false, volTimer = null;
+function setVol(v){
+  v = Math.max(0, Math.min(100, Math.round(v))); $('#vFill').style.width = v+'%';
+  if(st?.device) st.device.volume_percent = v;
+  clearTimeout(volTimer); volTimer = setTimeout(() => act(() => api('/me/player/volume?volume_percent='+v, {method:'PUT'}), () => { demo.vol = v; }), 180);
+}
+const vBar = $('#vBar');
+const volFromEvt = e => { const r = vBar.getBoundingClientRect(); const x = (e.touches ? e.touches[0].clientX : e.clientX); return (x - r.left)/r.width*100; };
+vBar.addEventListener('pointerdown', e => { volDrag = true; vBar.setPointerCapture(e.pointerId); setVol(volFromEvt(e)); });
+vBar.addEventListener('pointermove', e => { if(volDrag) setVol(volFromEvt(e)); });
+vBar.addEventListener('pointerup', () => { volDrag = false; });
+$('#vDown').onclick = () => setVol((st?.device?.volume_percent ?? 50) - 8);
+$('#vUp').onclick = () => setVol((st?.device?.volume_percent ?? 50) + 8);
+
+// Glisser horizontalement sur la pochette = piste suivante / précédente
+(() => { let x0 = null;
+  $('#art').addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, {passive:true});
+  $('#art').addEventListener('touchend', e => { if(x0 === null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if(dx < -60) $('#bNext').click(); else if(dx > 60) $('#bPrev').click(); });
+  $('#art').addEventListener('dblclick', () => $('#bPlay').click());
+})();
+
+/* ---------------- Vues ---------------- */
+function showView(v, manual){
+  view = v; if(manual) manualView = Date.now();
+  $('#player').classList.toggle('hidden', v !== 'player');
+  $('#clockView').classList.toggle('hidden', v !== 'clockView');
+  document.querySelectorAll('#dock [data-v]').forEach(b => b.classList.toggle('act', b.dataset.v === v));
+}
+function autoView(){
+  if(!cfg.idleClock || Date.now() - manualView < 120000) return;
+  const idle = !st?.is_playing && Date.now() - lastPlayingAt > 60000;
+  if(idle && view === 'player') showView('clockView');
+  if(st?.is_playing && view === 'clockView') showView('player');
+}
+document.querySelectorAll('#dock [data-v]').forEach(b => b.onclick = () => showView(b.dataset.v, true));
+document.querySelectorAll('#dock [data-s]').forEach(b => b.onclick = () => openSheet(b.dataset.s));
+$('#miniNow').onclick = () => showView('player', true);
+
+/* ---------------- Horloge & mode nuit ---------------- */
+const dateFmt = new Intl.DateTimeFormat('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+let nightForced = null;
+function clock(){
+  const d = new Date(); const hm = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  $('#topClock').textContent = hm; $('#bigClock').textContent = hm; $('#bigDate').textContent = dateFmt.format(d);
+  const h = d.getHours();
+  const autoNight = cfg.nightAuto && (cfg.nightFrom > cfg.nightTo ? (h >= cfg.nightFrom || h < cfg.nightTo) : (h >= cfg.nightFrom && h < cfg.nightTo));
+  document.body.classList.toggle('night', nightForced ?? autoNight);
+}
+$('#bigClock').onclick = () => { nightForced = !document.body.classList.contains('night'); clock(); toast(nightForced ? 'Mode nuit 🌙' : 'Mode jour ☀️'); };
+
+/* ---------------- Météo (Open-Meteo, sans clé) ---------------- */
+const WMO = c => c===0?['☀️','Ensoleillé']:c<=2?['🌤️','Éclaircies']:c===3?['☁️','Couvert']:c<=48?['🌫️','Brouillard']:c<=57?['🌦️','Bruine']
+  :c<=67?['🌧️','Pluie']:c<=77?['🌨️','Neige']:c<=82?['🌧️','Averses']:c<=86?['🌨️','Averses de neige']:['⛈️','Orage'];
+async function weather(){
+  try{
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${cfg.lat}&longitude=${cfg.lon}&current=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=4`;
+    const j = await (await fetch(u)).json();
+    let [e, l] = WMO(j.current.weather_code); if(!j.current.is_day && j.current.weather_code <= 1) e = '🌙';
+    const t = Math.round(j.current.temperature_2m);
+    $('#topWx').textContent = `${e} ${t}°`;
+    const days = new Intl.DateTimeFormat('fr-FR',{weekday:'short'});
+    let html = `<div id="wxNow"><span class="e">${e}</span><div>${t}°<div style="font-size:13px;color:var(--muted)">${esc(cfg.city)} · ${l}</div></div></div>`;
+    for(let i=1;i<4;i++){ html += `<div class="fc"><span>${days.format(new Date(j.daily.time[i]+'T12:00'))}</span><span class="e">${WMO(j.daily.weather_code[i])[0]}</span><span><b>${Math.round(j.daily.temperature_2m_max[i])}°</b> ${Math.round(j.daily.temperature_2m_min[i])}°</span></div>`; }
+    $('#wxRow').innerHTML = html;
+  }catch(e){ $('#topWx').textContent = ''; }
+}
+
+/* ---------------- Minuteur / arrêt de la musique ---------------- */
+let timer = null; // {end, stopMusic}
+let actx = null;
+function unlockAudio(){ try{ actx = actx || new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume(); }catch(e){} }
+function chime(){
+  if(!actx) return; const now = actx.currentTime;
+  [0,.35,.7,1.6,1.95,2.3].forEach((t,i) => { const o = actx.createOscillator(), g = actx.createGain();
+    o.type='sine'; o.frequency.value = [880,1108,1318][i%3]; g.gain.setValueAtTime(0,now+t); g.gain.linearRampToValueAtTime(.35,now+t+.02);
+    g.gain.exponentialRampToValueAtTime(.001,now+t+.6); o.connect(g).connect(actx.destination); o.start(now+t); o.stop(now+t+.7); });
+}
+function startTimer(min, stopMusic){ unlockAudio(); timer = { end:Date.now()+min*60000, stopMusic, min }; LS.set('timer', timer); tickTimer(); closeSheet();
+  toast(stopMusic ? `La musique s’arrêtera dans ${min} min 😴` : `Minuteur de ${min} min lancé`); }
+function cancelTimer(){ timer = null; LS.del('timer'); tickTimer(); }
+function tickTimer(){
+  const chip = $('#timerChip');
+  if(!timer){ chip.classList.add('hide'); return; }
+  const left = timer.end - Date.now();
+  if(left <= 0){
+    const t = timer; cancelTimer();
+    if(t.stopMusic){ // fondu du volume puis pause
+      const v0 = st?.device?.volume_percent ?? 50;
+      if(isDemo()){ demo.playing = false; poll(); }
+      else { let k = 0; const f = setInterval(async () => { k++; if(k <= 5) await api('/me/player/volume?volume_percent='+Math.round(v0*(1-k/6)), {method:'PUT'});
+        else { clearInterval(f); await api('/me/player/pause', {method:'PUT'}); await api('/me/player/volume?volume_percent='+v0, {method:'PUT'}); poll(); } }, 2000); }
+      toast('Bonne nuit 🌙', 4000);
+    }else{ chime(); toast('⏰ Minuteur terminé !', 8000); }
+    return;
+  }
+  chip.classList.remove('hide'); $('#timerLeft').textContent = fmt(left) + (timer.stopMusic ? ' 😴' : '');
+}
+$('#timerChip').onclick = () => openSheet('timer');
+
+/* ---------------- Panneaux ---------------- */
+function closeSheet(){ $('#sheet').classList.remove('open'); }
+$('#sheet').addEventListener('click', e => { if(e.target.id === 'sheet') closeSheet(); });
+const H = (t) => `<h2>${t}<button onclick="closeSheet()">Fermer</button></h2>`;
+async function openSheet(kind){
+  const box = $('#sheetBox'); $('#sheet').classList.add('open');
+  if(kind === 'settings') return renderSettings();
+  if(kind === 'setup') return renderSetup();
+  if(kind === 'timer'){
+    box.innerHTML = H('Minuteur') + (timer ? `<p>En cours : <b>${fmt(timer.end-Date.now())}</b> restantes ${timer.stopMusic?'(arrêt de la musique)':''}</p><p><button class="btn ghost" onclick="cancelTimer();closeSheet()">Annuler le minuteur</button></p>` : '')
+      + `<p class="hint">Minuteur avec sonnerie</p><div class="presets">${[1,3,5,10,15,20,30,45].map(m=>`<button class="pill" onclick="startTimer(${m},false)">${m} min</button>`).join('')}</div>
+      <p class="hint" style="margin-top:22px">Arrêter la musique en douceur dans…</p><div class="presets">${[10,15,20,30,45,60,90].map(m=>`<button class="pill" onclick="startTimer(${m},true)">${m} min</button>`).join('')}</div>`;
+    return;
+  }
+  if(isDemo() && kind !== 'settings'){
+    if(kind === 'devices') box.innerHTML = H('Appareils') + list([{a:'Enceinte du salon',b:'Enceinte · active',cur:true,ph:'🔊'},{a:'MacBook',b:'Ordinateur',ph:'💻'},{a:'Télé',b:'TV',ph:'📺'}]);
+    if(kind === 'queue') box.innerHTML = H('À suivre') + list(DEMO.map((t,i)=>({a:t.name,b:t.artist,img:t.art,cur:i===demo.i})));
+    if(kind === 'playlists') box.innerHTML = H('Playlists') + `<div class="grid">${DEMO.map(t=>`<button class="tile"><img src="${t.art}"><div>${esc(t.album)}</div></button>`).join('')}</div>`;
+    box.insertAdjacentHTML('beforeend', '<p class="hint" style="margin-top:16px">Mode démo : connecte Spotify dans ⚙︎ Réglages pour voir tes vraies données.</p>');
+    return;
+  }
+  if(!loggedIn()){ box.innerHTML = H('Spotify') + '<p class="hint">Connecte-toi d’abord à Spotify.</p><button class="btn" onclick="login()">Se connecter à Spotify</button>'; return; }
+  box.innerHTML = H('Chargement…');
+  if(kind === 'devices'){
+    const j = await api('/me/player/devices'); const ds = j?.devices || [];
+    const ico = t => ({Computer:'💻',Smartphone:'📱',Speaker:'🔊',TV:'📺',CastAudio:'📡',CastVideo:'📺',AVR:'🎛️',Tablet:'📱'}[t] || '🎵');
+    box.innerHTML = H('Lire sur…') + (ds.length ? list(ds.map(d => ({a:d.name, b:d.type+(d.is_active?' · actif':''), cur:d.is_active, ph:ico(d.type), on:`transfer('${d.id}')`})))
+      : '<p class="hint">Aucun appareil visible. Ouvre l’app Spotify sur une enceinte, un ordinateur ou un téléphone connecté au même compte, puis réessaie.</p>');
+  }
+  if(kind === 'queue'){
+    const j = await api('/me/player/queue'); const q = (j?.queue || []).slice(0,30);
+    const cur = j?.currently_playing;
+    const row = (t,c) => ({a:t.name, b:(t.artists||[]).map(a=>a.name).join(', ') || t.show?.name || '', img:(t.album?.images||t.images||[]).slice(-1)[0]?.url, cur:c});
+    box.innerHTML = H('À suivre') + (cur ? list([row(cur,true), ...q.map(t=>row(t,false))]) : '<p class="hint">Rien en lecture.</p>');
+  }
+  if(kind === 'playlists'){
+    const j = await api('/me/playlists?limit=50'); const ps = (j?.items || []).filter(Boolean);
+    box.innerHTML = H('Tes playlists') + `<div class="grid">${ps.map(p => `<button class="tile" onclick="playCtx('${p.uri}')">${p.images?.[0]?.url ? `<img loading="lazy" src="${esc(p.images[0].url)}">` : '<div class="ph"></div>'}<div>${esc(p.name)}</div></button>`).join('')}</div>`;
+  }
+}
+function list(items){ return `<div class="list">${items.map(i => `<button class="row ${i.cur?'cur':''}" ${i.on?`onclick="${i.on}"`:''}>${i.img?`<img loading="lazy" src="${esc(i.img)}">`:`<span class="ph">${i.ph||'🎵'}</span>`}<span class="tx"><div class="a">${esc(i.a)}</div><div class="b">${esc(i.b)}</div></span></button>`).join('')}</div>`; }
+async function transfer(id){ await api('/me/player', {method:'PUT', body:JSON.stringify({device_ids:[id], play:true})}); closeSheet(); toast('Lecture transférée'); setTimeout(poll, 800); }
+async function playCtx(uri){
+  const r = await api('/me/player/play', {method:'PUT', body:JSON.stringify({context_uri:uri})});
+  if(r){ closeSheet(); showView('player', true); setTimeout(poll, 700); }
+}
+
+function renderSettings(){
+  const box = $('#sheetBox');
+  box.innerHTML = H('Réglages') + `
+    <div class="field"><label>Spotify — Client ID</label><input id="sClient" placeholder="ex. 3f2a…" value="${esc(cfg.clientId)}" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+    <p class="hint">Adresse de redirection à déclarer dans ton app Spotify (copie-la exactement) :<br><code>${esc(REDIRECT)}</code></p>
+    <p>${loggedIn() ? '<button class="btn ghost" onclick="logout()">Se déconnecter de Spotify</button>' : '<button class="btn" onclick="saveSettings(true)">Enregistrer et se connecter à Spotify</button>'}</p>
+    <div class="field" style="margin-top:20px"><label>Ville pour la météo</label><input id="sCity" value="${esc(cfg.city)}"></div>
+    <div class="sw"><span>Mode nuit automatique (${cfg.nightFrom} h → ${cfg.nightTo} h)</span><input type="checkbox" id="sNight" ${cfg.nightAuto?'checked':''}></div>
+    <div class="sw"><span>Début / fin du mode nuit</span><span style="display:flex;gap:8px;width:150px"><input id="sNF" type="number" min="0" max="23" value="${cfg.nightFrom}"><input id="sNT" type="number" min="0" max="23" value="${cfg.nightTo}"></span></div>
+    <div class="sw"><span>Afficher l’horloge quand rien ne joue</span><input type="checkbox" id="sIdle" ${cfg.idleClock?'checked':''}></div>
+    <div class="sw"><span>Mode démo (sans Spotify)</span><input type="checkbox" id="sDemo" ${cfg.demo?'checked':''}></div>
+    <p style="display:flex;gap:10px;margin-top:18px"><button class="btn" onclick="saveSettings(false)">Enregistrer</button><button class="btn ghost" onclick="location.reload()">Recharger l’app</button></p>
+    <p><button class="btn ghost" onclick="openSheet('setup')">Relancer l’assistant d’installation</button></p>
+    <p class="hint">Astuce : Réglages iPhone › Luminosité et affichage › Verrouillage auto › Jamais. Puis Accessibilité › Accès guidé pour verrouiller l’iPhone sur cette app.</p>`;
+}
+async function saveSettings(andLogin){
+  cfg.clientId = $('#sClient').value.trim();
+  cfg.nightAuto = $('#sNight').checked; cfg.idleClock = $('#sIdle').checked; cfg.demo = $('#sDemo').checked;
+  cfg.nightFrom = Math.max(0,Math.min(23,+$('#sNF').value||0)); cfg.nightTo = Math.max(0,Math.min(23,+$('#sNT').value||0));
+  const city = $('#sCity').value.trim();
+  if(city && city !== cfg.city){
+    try{ const g = await (await fetch('https://geocoding-api.open-meteo.com/v1/search?count=1&language=fr&name='+encodeURIComponent(city))).json();
+      const r = g.results?.[0]; if(r){ cfg.city = r.name; cfg.lat = r.latitude; cfg.lon = r.longitude; } else toast('Ville introuvable'); }catch(e){ toast('Météo indisponible'); }
+  }
+  saveCfg(); clock(); weather(); poll();
+  if(andLogin) return login();
+  closeSheet(); toast('Réglages enregistrés');
+}
+function logout(){ LS.del('tok'); st = null; render(); closeSheet(); toast('Déconnecté'); }
+
+/* ---------------- Écran toujours allumé ---------------- */
+let wakeLock = null;
+async function keepAwake(){ try{ if('wakeLock' in navigator && !wakeLock){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } }catch(e){} }
+document.addEventListener('pointerdown', () => { keepAwake(); unlockAudio(); }, {passive:true});
+document.addEventListener('visibilitychange', () => { if(!document.hidden){ keepAwake(); poll(); weather(); } });
+
+
+/* ---------------- Liquid Glass : reflet qui suit le doigt ---------------- */
+document.addEventListener('pointermove', e => { const g = e.target.closest?.('.glass'); if(!g) return;
+  const r = g.getBoundingClientRect(); g.style.setProperty('--lx', (e.clientX-r.left)+'px'); g.style.setProperty('--ly', (e.clientY-r.top)+'px'); }, {passive:true});
+document.addEventListener('pointerdown', e => { const g = e.target.closest?.('.glass'); if(!g) return;
+  const r = g.getBoundingClientRect(); g.style.setProperty('--lx', (e.clientX-r.left)+'px'); g.style.setProperty('--ly', (e.clientY-r.top)+'px');
+  clearTimeout(g._lt); g._lt = setTimeout(() => g.style.setProperty('--ly','-200px'), 900); }, {passive:true});
+
+
+/* ---------------- Assistant de premier lancement ---------------- */
+const isStandalone = () => navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+async function copy(txt, btn){
+  try{ await navigator.clipboard.writeText(txt); }catch(e){ const t = document.createElement('textarea'); t.value = txt; document.body.appendChild(t); t.select(); try{ document.execCommand('copy'); }catch(_){} t.remove(); }
+  if(btn){ const o = btn.textContent; btn.textContent = 'Copié ✓'; setTimeout(() => btn.textContent = o, 1500); }
+}
+const step = (n, title, body) => `<div class="glass" style="border-radius:24px;padding:16px 18px;margin-bottom:12px"><div style="font-size:13px;color:var(--muted);letter-spacing:.08em">ÉTAPE ${n}</div><div style="font-size:18px;font-weight:600;margin:4px 0 8px">${title}</div>${body}</div>`;
+const copyRow = (label, val) => `<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><span class="hint" style="min-width:110px">${label}</span><code style="flex:1">${esc(val)}</code><button class="pill" style="padding:8px 14px;font-size:14px" onclick="copy('${esc(val)}',this)">Copier</button></div>`;
+function renderSetup(){
+  const box = $('#sheetBox'); let n = 1, html = H('Bienvenue 👋');
+  if(isIOS && !isStandalone()){
+    html += step(n++, 'Installer l’app sur l’écran d’accueil',
+      `<p class="hint">Touche le bouton <b>Partager</b> de Safari (carré avec une flèche), puis <b>Sur l’écran d’accueil</b> › <b>Ajouter</b>. Ensuite <b>ferme Safari et ouvre l’icône « Salon »</b> : la suite se fait là-bas.</p>`);
+  }
+  if(!cfg.clientId){
+    html += step(n++, 'Créer ton accès Spotify (2 min)',
+      `<p class="hint">Touche le bouton, connecte-toi avec ton compte Spotify, puis remplis le formulaire avec ces valeurs :</p>
+       ${copyRow('App name', 'Salon')}${copyRow('Description', 'Hub de salon')}${copyRow('Redirect URI', REDIRECT)}
+       <p class="hint">Touche <b>Add</b> à côté de la Redirect URI, coche <b>Web API</b>, accepte et <b>Save</b>. Copie ensuite le <b>Client ID</b> affiché.</p>
+       <p><a class="btn" href="https://developer.spotify.com/dashboard/create" target="_blank" rel="noopener" style="text-decoration:none">Ouvrir Spotify Developer ↗</a></p>`);
+    html += step(n++, 'Coller le Client ID',
+      `<div class="field"><input id="wClient" placeholder="Colle le Client ID ici" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+       <button class="btn" onclick="wizardLogin()">Se connecter à Spotify</button>`);
+  }else{
+    html += step(n++, 'Se connecter à Spotify', `<p class="hint">Un seul toucher, puis « Accepter ».</p><button class="btn" onclick="login()">Se connecter à Spotify</button>`);
+  }
+  html += `<p style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn ghost" onclick="cfg.demo=true;saveCfg();closeSheet();poll()">Voir la démo d’abord</button></p>
+    <p class="hint">Pour un vrai « écran de salon » : Réglages iPhone › Luminosité et affichage › Verrouillage auto › <b>Jamais</b>, puis Accessibilité › <b>Accès guidé</b> (triple-clic sur le bouton latéral dans l’app).</p>`;
+  box.innerHTML = html;
+}
+function wizardLogin(){
+  const v = ($('#wClient').value || '').trim().replace(/\s/g,'');
+  if(!/^[0-9a-f]{32}$/i.test(v)){ toast('Ce Client ID ne semble pas valide (32 caractères)'); return; }
+  cfg.clientId = v; cfg.demo = false; saveCfg(); login();
+}
+
+/* ---------------- Démarrage ---------------- */
+Object.assign(window, { copy, wizardLogin, saveCfg, cfg, poll, closeSheet, startTimer, cancelTimer, transfer, playCtx, login, logout, saveSettings });
+(async () => {
+  timer = LS.get('timer', null);
+  await handleCallback();
+  clock(); weather(); await poll();
+  if(!loggedIn() && !cfg.demo) setTimeout(() => openSheet('setup'), 700);
+  setInterval(clock, 1000);
+  setInterval(() => { tickProgress(); tickTimer(); }, 250);
+  setInterval(() => { if(!document.hidden) poll(); }, 3000);
+  setInterval(weather, 15*60000);
+  if('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
