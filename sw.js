@@ -1,5 +1,5 @@
 // Cache léger : l'app s'ouvre même si le Wi-Fi est lent. Toujours réseau d'abord.
-const C = 'salon-v3';
+const C = 'salon-v4';
 const SHELL = ['./', 'index.html', 'manifest.json', 'icon-180.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(C).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k))))); self.clients.claim(); });
